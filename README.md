@@ -41,7 +41,7 @@ ran smoothly and posted a competitive qualifying time.
 
 ### Result
 
-On the **Corkscrew** circuit our best standing-start lap was **1:26.84**.
+On the **Corkscrew** circuit our best standing-start lap was **1:27.50**.
 
 ---
 
@@ -120,7 +120,9 @@ assistant during development. Concretely, Granite helped us with:
 
 ## Hotlap
 
-A video of our fastest lap will be added here soon.
+Watch our driver complete a full lap of Corkscrew here:
+
+[Apex Overfit — Corkscrew hotlap (YouTube)](https://www.youtube.com/watch?v=b1Lbvxc0jwI)
 
 ---
 
