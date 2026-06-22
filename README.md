@@ -1,94 +1,133 @@
-# Gym-TORCS
+# Apex Overfit — Autonomous Racing Driver for TORCS
 
-Gym-TORCS is the reinforcement learning (RL) environment in TORCS domain with OpenAI-gym-like interface.
-TORCS is the open-rource realistic car racing simulator recently used as RL benchmark task in several AI studies.
+**Competition:** IBM AI Racing League 2026 · **Language:** Python 3 · **Simulator:** TORCS
 
-Gym-TORCS is the python wrapper of TORCS for RL experiment with the simple interface (similar, but not fully) compatible with OpenAI-gym environments. The current implementaion is for only the single-track race in practie mode. If you want to use multiple tracks or other racing mode (quick race etc.), you may need to modify the environment, "autostart.sh" or the race configuration file using GUI of TORCS.
+This repository holds the code for the self-driving agent we built for the
+**IBM AI Racing League 2026**. The agent pilots a car inside TORCS (The Open
+Racing Car Simulator), reading live sensor data and converting it into steering,
+throttle, braking and gear commands in real time — chasing the fastest possible
+lap while keeping the car clean on track.
 
-This code is developed based on vtorcs (https://github.com/giuse/vtorcs)
-and python-client for torcs (http://xed.ch/project/snakeoil/index.html).
+---
 
-The detailed explanation of original TORCS for AI research is given by Daniele Loiacono et al. (https://arxiv.org/pdf/1304.1672.pdf)
+## Overview
 
-Because torcs has memory leak bug at race reset.
-As an ad-hoc solution, we relaunch and automate the gui setting in torcs.
-Any better solution is welcome!
+The challenge was to write a program that drives a race car on its own, with no
+human input, by responding tick-by-tick to what the car "feels": its speed, its
+heading relative to the road, and how far the track edges are in every sensor
+direction.
 
-# Requirements
-We are assuming you are using Ubuntu 14.04 LTS/16.04 LTS machine and installed
-* Python 3
-* xautomation (http://linux.die.net/man/7/xautomation)
-* OpenAI-Gym (https://github.com/openai/gym)
-* numpy
-* vtorcs-RL-color (installation of vtorcs-RL-color is explained in vtorcs-RL-color directory)
+### Design philosophy
 
-# Example Code
-The example code and agent are written in example_experiment.py and sample_agent.py.
+Instead of a heavy learned model, we deliberately went for a **transparent,
+sensor-reactive controller** — every command is recomputed from scratch each
+frame, with no stored map and no memory between laps. The logic rests on a few
+simple ideas:
 
-# Initialization of the Race
-After the insallation of vtorcs-RL-color, you need to initialize the race setting. You can find the detailed explanation in a document (https://arxiv.org/pdf/1304.1672.pdf), but here I show the simple gui-based setting.
+- **Look-ahead = speed.** The forward range sensors tell us how far the road is
+  open ahead. Lots of clear road → it's a straight, push hard. A short reading →
+  a corner is near, ease the target speed down.
+- **Smooth throttle.** Acceleration is handled by a PD controller on the speed
+  error, so power comes on progressively instead of stabbing the pedal.
+- **Stable steering.** A PD law blends heading correction, track-centering and
+  lateral-drift damping, softened at high speed to kill nervous twitching.
+- **Braking that cooperates with cornering.** Brake force scales with how far
+  over the safe speed we are, and bleeds off as the wheel turns in, so the tyres
+  aren't asked to brake and corner at their limit simultaneously.
 
-So first you need to run
-```
-sudo torcs
-```
-in the terminal, the GUI of TORCS should be launched.
-Then, you need to choose the race track by following the GUI (Race --> Practice --> Configure Race) and open TORCS server by selecting Race --> Practice --> New Race. This should result that TORCS keeps a blue screen with several text information.
+We started from a cautious version with a conservative speed ceiling, then
+gradually tightened the steering, throttle and braking response until the car
+ran smoothly and posted a competitive qualifying time.
 
-If you need to treat the vision input in your AI agent, you have to set the small image size in TORCS. To do so, you have to run
-```
-python snakeoil3_gym.py
-```
-in the second terminal window after you open the TORCS server (just as written above). Then the race starts, and you can select the driving-window mode by F2 key during the race.
+### Result
 
-After the selection of the driving-window mode, you need to set the appropriate gui size. This is done by using the display option mode in Options --> Display. You can select the Screen Resolution, and you need to select 64x64 for visual input (our immplementation only support this screen size, other screen size results the unreasonable visual information). Then, you need to shut down TORCS to complete the configuration for the vision treatment.
+On the **Corkscrew** circuit our best standing-start lap was **1:26.84**.
 
+---
 
-# Simple How-To
+## Requirements
 
-```python
-from gym_torcs import TorcsEnv
+* **Python 3**
+* **TORCS** (The Open Racing Car Simulator)
+* The **SCR** (Simulated Car Racing) server patch installed in the TORCS
+  directory
 
-#### Generate a Torcs environment
-# enable vision input, the action is steering only (1 dim continuous action)
-env = TorcsEnv(vision=True, throttle=False)
+---
 
-# without vision input, the action is steering and throttle (2 dim continuous action)
-# env = TorcsEnv(vision=False, throttle=True)
+## Setup
 
-ob = env.reset(relaunch=True)  # with torcs relaunch (avoid memory leak bug in torcs)
-# ob = env.reset()  # without torcs relaunch
+1. **Get the code:**
+   ```
+   git clone https://github.com/<your-account>/apex-overfit
+   ```
 
-# Generate an agent
-from sample_agent import Agent
-agent = Agent(1)  # steering only
-action = agent.act(ob, reward, done, vision=True)
+2. **Configure TORCS:**
+   * Open TORCS.
+   * Go to `Race` → `Practice` → `Configure Race`.
+   * Add a single driver — `scr_server 1` — and pick your track.
+   * Start with `New Race`. TORCS will hold on a waiting screen, listening for a
+     UDP connection on port `3001`.
 
-# single step
-ob, reward, done, _ = env.step(action)
+---
 
-# shut down torcs
-env.end()
-```
+## Running the driver
 
-# 
-
-# Add Noise in Low-dim Sensors
-
-If you want to apply sensor noise in low-dimensional sensors, you should 
+Once TORCS is sitting at the starting line, start the controller:
 
 ```
-os.system('torcs -nofuel -nodamage -nolaptime -vision -noisy &')
-os.system('torcs -nofuel -nolaptime -noisy &')
+python torcs_jm_par.py
 ```
 
-at 33 & 35th lines in gym_torcs.py
+To capture per-tick telemetry (useful for tuning), set the log flag:
 
-# Great Application
-gym-torcs was utilized in DDPG experiment with Keras by Ben Lau. 
-This experiment is really great!
+```
+TORCS_LOG=1 python torcs_jm_par.py
+```
 
-https://yanpanlau.github.io/2016/10/11/Torcs-Keras.html
+Run `python torcs_jm_par.py -h` for the full list of options (port, host, track
+tag, etc.).
 
-# Acknowledgement
-gym_torcs was developed during the spring internship 2016 at Preferred Networks.
+---
+
+## Repository contents
+
+| File | Role |
+|------|------|
+| `torcs_jm_par.py` | Our driver — all the steering, speed and gear logic lives here. |
+| `snakeoil3_gym.py` | UDP client handling the TORCS connection, adapted for the Gym setup. |
+| `snakeoil3_jm2.py` | A second UDP client variant, used for a direct script-to-simulator link. |
+| `gym_torcs.py` | Gym-style environment wrapper sitting on top of TORCS. |
+| `autostart.sh` | Helper script that launches and drives the TORCS GUI. |
+
+All tunable constants for the driver are gathered in a single configuration
+block at the top of `torcs_jm_par.py`, so behaviour can be adjusted without
+touching the control logic.
+
+---
+
+## Use of IBM Granite
+
+Following the competition rules, we used the **IBM Granite** models as an
+assistant during development. Concretely, Granite helped us with:
+
+* **Scaffolding** — outlining an initial class layout and the shape of the main
+  driving loop.
+* **Debugging & refactoring** — tracking down TORCS UDP communication issues and
+  cleaning up the code for clarity and performance.
+* **Documentation** — phrasing code comments and shaping this README.
+
+---
+
+## Hotlap
+
+A video of our fastest lap will be added here soon.
+
+---
+
+## Team Apex Overfit
+
+* Artsiom Karzhaneuski
+* Nazar Tkachuk
+* Dmytrii Mryts
+* Roman Dovhal
+* Dmytro Golubtsov
